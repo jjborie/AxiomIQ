@@ -1,7 +1,9 @@
 {
   "name": "axiomiq-frontend",
   "version": "0.1.0",
+  "type": "module",
   "scripts": {
-    "serve": "npx http-server ."
+    "serve": "npx http-server .",
+    "test": "node --test"
   }
 }
