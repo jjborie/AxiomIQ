@@ -5,6 +5,126 @@
     <title>AxiomIQ Frontend</title>
 </head>
 <body>
-    <h1>Hello from AxiomIQ Frontend</h1>
+<h1>AxiomIQ API Demo</h1>
+
+<form id="login-form">
+  <h2>Login</h2>
+  <input id="username" placeholder="Username" />
+  <input id="password" type="password" placeholder="Password" />
+  <button type="submit">Login</button>
+</form>
+<div id="auth-status"></div>
+
+<form id="model-form">
+  <h2>Add Model</h2>
+  <input id="model-name" placeholder="Name" />
+  <input id="model-type" placeholder="Type" />
+  <button type="submit">Add</button>
+</form>
+<ul id="model-list"></ul>
+
+<form id="question-form">
+  <h2>Add Question</h2>
+  <input id="question-text" placeholder="Text" />
+  <input id="question-ku" placeholder="Knowledge Unit" />
+  <input id="question-options" placeholder="Options (comma)" />
+  <input id="question-correct" placeholder="Correct" />
+  <button type="submit">Add</button>
+</form>
+
+<form id="evaluation-form">
+  <h2>Start Evaluation</h2>
+  <input id="model-ids" placeholder="Model IDs (comma)" />
+  <input id="question-count" type="number" placeholder="Question count" />
+  <button type="submit">Start</button>
+</form>
+<div id="evaluation-result"></div>
+
+<script>
+let token = '';
+document.getElementById('login-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const res = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  if (res.ok) {
+    const data = await res.json();
+    token = data.access_token;
+    document.getElementById('auth-status').innerText = 'Logged in';
+    loadModels();
+  } else {
+    document.getElementById('auth-status').innerText = 'Login failed';
+  }
+};
+
+async function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+}
+
+document.getElementById('model-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('model-name').value;
+  const type = document.getElementById('model-type').value;
+  await fetch('/models', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ name, type })
+  });
+  loadModels();
+};
+
+async function loadModels() {
+  const res = await fetch('/models', { headers: await authHeaders() });
+  if (res.ok) {
+    const models = await res.json();
+    const list = document.getElementById('model-list');
+    list.innerHTML = '';
+    models.forEach(m => {
+      const li = document.createElement('li');
+      li.textContent = m.name;
+      list.appendChild(li);
+    });
+  }
+}
+
+document.getElementById('question-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = document.getElementById('question-text').value;
+  const ku = document.getElementById('question-ku').value;
+  const options = document.getElementById('question-options').value.split(',');
+  const correct = document.getElementById('question-correct').value;
+  await fetch('/questions', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ text, options, correct, ku })
+  });
+};
+
+document.getElementById('evaluation-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const modelIds = document.getElementById('model-ids').value
+    .split(',').map(v => parseInt(v.trim())).filter(Boolean);
+  const questionCount = parseInt(document.getElementById('question-count').value);
+  const evalRes = await fetch('/evaluations', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ model_ids: modelIds, question_scope: [], question_count: questionCount, mode: 'auto' })
+  });
+  if (evalRes.ok) {
+    const ev = await evalRes.json();
+    const res = await fetch('/evaluations/' + ev.evaluation_id, {
+      headers: await authHeaders()
+    });
+    if (res.ok) {
+      const result = await res.json();
+      document.getElementById('evaluation-result').innerText = JSON.stringify(result);
+    }
+  }
+};
+</script>
 </body>
 </html>

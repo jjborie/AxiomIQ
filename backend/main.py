@@ -9,7 +9,7 @@ from . import config
 
 app = FastAPI(title="AxiomIQ Backend")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ def health():
 # ---------------------------------------------------------------------------
 # Authentication
 # ---------------------------------------------------------------------------
-@app.post("/api/login", response_model=Token)
+@app.post("/auth/login", response_model=Token)
 def login(data: LoginRequest):
     if not config.verify_credentials(data.username, data.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect credentials")
@@ -124,7 +124,7 @@ def login(data: LoginRequest):
 # ---------------------------------------------------------------------------
 # Questions endpoints
 # ---------------------------------------------------------------------------
-@app.get("/api/questions", response_model=List[Question])
+@app.get("/questions", response_model=List[Question])
 def list_questions(ku: Optional[str] = None, limit: int = 100, token: str = Depends(require_token)):
     questions = list(_questions.values())
     if ku:
@@ -132,7 +132,7 @@ def list_questions(ku: Optional[str] = None, limit: int = 100, token: str = Depe
     return questions[:limit]
 
 
-@app.post("/api/questions", response_model=Question)
+@app.post("/questions", response_model=Question)
 def create_question(data: QuestionCreate, token: str = Depends(require_token)):
     global _question_id
     question = Question(id=_question_id, **data.dict())
@@ -141,7 +141,7 @@ def create_question(data: QuestionCreate, token: str = Depends(require_token)):
     return question
 
 
-@app.delete("/api/questions/{question_id}")
+@app.delete("/questions/{question_id}")
 def delete_question(question_id: int, token: str = Depends(require_token)):
     if question_id not in _questions:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -152,12 +152,12 @@ def delete_question(question_id: int, token: str = Depends(require_token)):
 # ---------------------------------------------------------------------------
 # Models endpoints
 # ---------------------------------------------------------------------------
-@app.get("/api/models", response_model=List[Model])
+@app.get("/models", response_model=List[Model])
 def list_models(token: str = Depends(require_token)):
     return list(_models.values())
 
 
-@app.post("/api/models", response_model=Model)
+@app.post("/models", response_model=Model)
 def create_model(data: ModelCreate, token: str = Depends(require_token)):
     global _model_id
     model = Model(id=_model_id, status="active", **data.dict())
@@ -166,7 +166,7 @@ def create_model(data: ModelCreate, token: str = Depends(require_token)):
     return model
 
 
-@app.post("/api/models/{model_id}/test")
+@app.post("/models/{model_id}/test")
 def test_model(model_id: int, token: str = Depends(require_token)):
     if model_id not in _models:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -177,7 +177,7 @@ def test_model(model_id: int, token: str = Depends(require_token)):
 # ---------------------------------------------------------------------------
 # Evaluation endpoints
 # ---------------------------------------------------------------------------
-@app.post("/api/evaluations", response_model=Evaluation)
+@app.post("/evaluations", response_model=Evaluation)
 def create_evaluation(data: EvaluationCreate, token: str = Depends(require_token)):
     eval_id = f"ev{len(_evaluations)+1}"
     evaluation = Evaluation(
@@ -191,14 +191,14 @@ def create_evaluation(data: EvaluationCreate, token: str = Depends(require_token
     return evaluation
 
 
-@app.get("/api/evaluations/{evaluation_id}", response_model=Evaluation)
-def get_evaluation(evaluation_id: str, token: str = Depends(require_token)):
+@app.get("/evaluations/{evaluation_id}/status", response_model=Evaluation)
+def get_evaluation_status(evaluation_id: str, token: str = Depends(require_token)):
     if evaluation_id not in _evaluations:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     return _evaluations[evaluation_id]
 
 
-@app.get("/api/evaluations/{evaluation_id}/results", response_model=EvaluationResult)
+@app.get("/evaluations/{evaluation_id}", response_model=EvaluationResult)
 def get_evaluation_results(evaluation_id: str, token: str = Depends(require_token)):
     if evaluation_id not in _evaluation_results:
         raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -208,7 +208,7 @@ def get_evaluation_results(evaluation_id: str, token: str = Depends(require_toke
 # ---------------------------------------------------------------------------
 # Misc endpoints
 # ---------------------------------------------------------------------------
-@app.get("/api/kus", response_model=List[str])
+@app.get("/kus", response_model=List[str])
 def list_kus(token: str = Depends(require_token)):
     return _kus
 
