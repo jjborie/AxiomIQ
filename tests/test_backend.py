@@ -75,7 +75,7 @@ def test_evaluation_flow():
     evaluation = main.create_evaluation(data, token=config.ACCESS_TOKEN)
     assert evaluation.evaluation_id == "ev1"
 
-    fetched = main.get_evaluation(evaluation.evaluation_id, token=config.ACCESS_TOKEN)
+    fetched = main.get_evaluation_status(evaluation.evaluation_id, token=config.ACCESS_TOKEN)
     assert fetched.evaluation_id == evaluation.evaluation_id
 
     results = main.get_evaluation_results(evaluation.evaluation_id, token=config.ACCESS_TOKEN)
@@ -83,7 +83,7 @@ def test_evaluation_flow():
     assert results.questions == []
 
     with pytest.raises(HTTPException) as exc:
-        main.get_evaluation("missing", token=config.ACCESS_TOKEN)
+        main.get_evaluation_status("missing", token=config.ACCESS_TOKEN)
     assert exc.value.status_code == 404
 
     with pytest.raises(HTTPException) as exc:
