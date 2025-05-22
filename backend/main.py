@@ -6,6 +6,18 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from . import config
+from .database import SessionLocal, engine
+from . import models as db_models
+
+db_models.Base.metadata.create_all(bind=engine)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 app = FastAPI(title="AxiomIQ Backend")
 
@@ -77,16 +89,11 @@ class EvaluationResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# In memory "database"
+# In memory "database" for evaluations only
 # ---------------------------------------------------------------------------
-_questions: Dict[int, Question] = {}
-_models: Dict[int, Model] = {}
 _evaluations: Dict[str, Evaluation] = {}
 _evaluation_results: Dict[str, EvaluationResult] = {}
 _kus = ["Networking", "Cryptography", "Threat Analysis"]
-
-_question_id = 1
-_model_id = 1
 
 
 # ---------------------------------------------------------------------------
@@ -125,27 +132,43 @@ def login(data: LoginRequest):
 # Questions endpoints
 # ---------------------------------------------------------------------------
 @app.get("/questions", response_model=List[Question])
-def list_questions(ku: Optional[str] = None, limit: int = 100, token: str = Depends(require_token)):
-    questions = list(_questions.values())
+def list_questions(
+    ku: Optional[str] = None,
+    limit: int = 100,
+    token: str = Depends(require_token),
+    db: SessionLocal = Depends(get_db),
+):
+    query = db.query(db_models.Question)
     if ku:
-        questions = [q for q in questions if q.ku == ku]
-    return questions[:limit]
+        query = query.filter(db_models.Question.ku == ku)
+    records = query.limit(limit).all()
+    return [Question(id=q.id, text=q.text, options=q.options, correct=q.correct, ku=q.ku) for q in records]
 
 
 @app.post("/questions", response_model=Question)
-def create_question(data: QuestionCreate, token: str = Depends(require_token)):
-    global _question_id
-    question = Question(id=_question_id, **data.dict())
-    _questions[_question_id] = question
-    _question_id += 1
-    return question
+def create_question(
+    data: QuestionCreate,
+    token: str = Depends(require_token),
+    db: SessionLocal = Depends(get_db),
+):
+    record = db_models.Question(**data.dict())
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return Question(id=record.id, text=record.text, options=record.options, correct=record.correct, ku=record.ku)
 
 
 @app.delete("/questions/{question_id}")
-def delete_question(question_id: int, token: str = Depends(require_token)):
-    if question_id not in _questions:
+def delete_question(
+    question_id: int,
+    token: str = Depends(require_token),
+    db: SessionLocal = Depends(get_db),
+):
+    record = db.query(db_models.Question).get(question_id)
+    if not record:
         raise HTTPException(status_code=404, detail="Question not found")
-    del _questions[question_id]
+    db.delete(record)
+    db.commit()
     return {"status": "deleted"}
 
 
@@ -153,22 +176,32 @@ def delete_question(question_id: int, token: str = Depends(require_token)):
 # Models endpoints
 # ---------------------------------------------------------------------------
 @app.get("/models", response_model=List[Model])
-def list_models(token: str = Depends(require_token)):
-    return list(_models.values())
+def list_models(token: str = Depends(require_token), db: SessionLocal = Depends(get_db)):
+    records = db.query(db_models.Model).all()
+    return [Model(id=m.id, name=m.name, type=m.type, status=m.status, api_key=m.api_key, model_name=m.model_name) for m in records]
 
 
 @app.post("/models", response_model=Model)
-def create_model(data: ModelCreate, token: str = Depends(require_token)):
-    global _model_id
-    model = Model(id=_model_id, status="active", **data.dict())
-    _models[_model_id] = model
-    _model_id += 1
-    return model
+def create_model(
+    data: ModelCreate,
+    token: str = Depends(require_token),
+    db: SessionLocal = Depends(get_db),
+):
+    record = db_models.Model(status="active", **data.dict())
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return Model(id=record.id, name=record.name, type=record.type, status=record.status, api_key=record.api_key, model_name=record.model_name)
 
 
 @app.post("/models/{model_id}/test")
-def test_model(model_id: int, token: str = Depends(require_token)):
-    if model_id not in _models:
+def test_model(
+    model_id: int,
+    token: str = Depends(require_token),
+    db: SessionLocal = Depends(get_db),
+):
+    record = db.query(db_models.Model).get(model_id)
+    if not record:
         raise HTTPException(status_code=404, detail="Model not found")
     # Dummy success response
     return {"status": "ok"}
