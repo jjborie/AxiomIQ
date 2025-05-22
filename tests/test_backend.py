@@ -70,7 +70,12 @@ def test_model_lifecycle():
 
 
 def test_evaluation_flow():
-    data = main.EvaluationCreate(model_ids=[], question_scope=[], question_count=1, mode="auto")
+    qdata = main.QuestionCreate(text="Q?", options=["A", "B"], correct="A", ku="Networking")
+    main.create_question(qdata, token=config.ACCESS_TOKEN)
+    mdata = main.ModelCreate(name="m1", type="local")
+    main.create_model(mdata, token=config.ACCESS_TOKEN)
+
+    data = main.EvaluationCreate(model_ids=[1], question_scope=["Networking"], question_count=1, mode="auto")
     evaluation = main.create_evaluation(data, token=config.ACCESS_TOKEN)
     assert evaluation.evaluation_id == "ev1"
 
@@ -78,8 +83,9 @@ def test_evaluation_flow():
     assert fetched.evaluation_id == evaluation.evaluation_id
 
     results = main.get_evaluation_results(evaluation.evaluation_id, token=config.ACCESS_TOKEN)
-    assert results.models == []
-    assert results.questions == []
+    assert results.models[0]["id"] == 1
+    assert len(results.questions) == 1
+
 
     with pytest.raises(HTTPException) as exc:
         main.get_evaluation_status("missing", token=config.ACCESS_TOKEN)

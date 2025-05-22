@@ -1,0 +1,10 @@
+agents:
+  evaluation:
+    timeout: 30
+    mode: peer
+  model:
+    max_retries: 2
+    response_format: "letter"
+  analytics:
+    enable_anova: true
+    export_format: "csv"
