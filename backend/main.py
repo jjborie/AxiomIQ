@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field
 from . import config
 from .database import SessionLocal, engine
 from . import models as db_models
+from .agents import EvaluationAgent, ModelAgent
+from .agents.config_loader import load_config as load_agent_config
 
 db_models.Base.metadata.create_all(bind=engine)
 
@@ -211,16 +213,57 @@ def test_model(
 # Evaluation endpoints
 # ---------------------------------------------------------------------------
 @app.post("/evaluations", response_model=Evaluation)
-def create_evaluation(data: EvaluationCreate, token: str = Depends(require_token)):
+def create_evaluation(
+    data: EvaluationCreate,
+    token: str = Depends(require_token),
+    db: SessionLocal = Depends(get_db),
+):
     eval_id = f"ev{len(_evaluations)+1}"
+
+    # Select questions based on requested scope
+    q_query = db.query(db_models.Question)
+    if data.question_scope:
+        q_query = q_query.filter(db_models.Question.ku.in_(data.question_scope))
+    q_records = q_query.limit(data.question_count).all()
+    questions = [
+        {"id": q.id, "text": q.text, "options": q.options, "correct": q.correct}
+        for q in q_records
+    ]
+
+    # Load models
+    m_query = db.query(db_models.Model)
+    if data.model_ids:
+        m_query = m_query.filter(db_models.Model.id.in_(data.model_ids))
+    m_records = m_query.all()
+
+    cfg = load_agent_config()
+    model_agents = [
+        ModelAgent(
+            model_id=m.id,
+            name=m.name,
+            max_retries=cfg["model"]["max_retries"],
+            response_format=cfg["model"]["response_format"],
+        )
+        for m in m_records
+    ]
+
+    eval_agent = EvaluationAgent(
+        model_agents,
+        timeout=cfg["evaluation"]["timeout"],
+        mode=data.mode or cfg["evaluation"]["mode"],
+    )
+    results = eval_agent.evaluate(questions)
+
     evaluation = Evaluation(
         evaluation_id=eval_id,
-        status="started",
+        status="completed",
         start_time=datetime.utcnow(),
+        end_time=datetime.utcnow(),
     )
     _evaluations[eval_id] = evaluation
-    # Dummy evaluation result placeholder
-    _evaluation_results[eval_id] = EvaluationResult(models=[], questions=[])
+    _evaluation_results[eval_id] = EvaluationResult(
+        models=results["models"], questions=results["questions"]
+    )
     return evaluation
 
 
