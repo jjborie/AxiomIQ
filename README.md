@@ -16,6 +16,31 @@ HTML frontend.  The API is implemented with FastAPI and stores data in memory.
 The frontend (`frontend/index.html`) contains a few basic forms that exercise
 these endpoints using JavaScript `fetch` calls.
 
+## Running locally
+
+The application can be started without containers if you have **Python** and
+**Node.js** installed.
+
+1. **Start the backend**
+
+   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r backend/requirements.txt
+   uvicorn backend.main:app --reload --port 8000
+   ```
+
+2. **Start the frontend** in another terminal
+
+   ```bash
+   cd frontend
+   npm install
+   npx http-server . -p 3000
+   ```
+
+   Open `http://localhost:3000` in your browser to access the UI. The API will
+   be available on `http://localhost:8000`.
+
 ## Running with Docker Compose
 
 ```bash
