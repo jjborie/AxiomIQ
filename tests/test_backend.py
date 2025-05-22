@@ -6,19 +6,17 @@ from backend import main, config
 
 @pytest.fixture(autouse=True)
 def reset_state():
-    main._questions.clear()
-    main._models.clear()
+    from backend import database, models
+
+    models.Base.metadata.drop_all(bind=database.engine)
+    models.Base.metadata.create_all(bind=database.engine)
     main._evaluations.clear()
     main._evaluation_results.clear()
-    main._question_id = 1
-    main._model_id = 1
     yield
-    main._questions.clear()
-    main._models.clear()
+    models.Base.metadata.drop_all(bind=database.engine)
+    models.Base.metadata.create_all(bind=database.engine)
     main._evaluations.clear()
     main._evaluation_results.clear()
-    main._question_id = 1
-    main._model_id = 1
 
 
 def test_login_success():
@@ -46,7 +44,8 @@ def test_question_lifecycle():
 
     resp = main.delete_question(question.id, token=config.ACCESS_TOKEN)
     assert resp["status"] == "deleted"
-    assert not main._questions
+    questions = main.list_questions(token=config.ACCESS_TOKEN)
+    assert len(questions) == 0
 
     with pytest.raises(HTTPException) as exc:
         main.delete_question(999, token=config.ACCESS_TOKEN)
